@@ -21,6 +21,14 @@ from typing import Any, Hashable, Iterable, Mapping, Optional
 # Import third-party libraries from PyPI
 
 # Constants
+DOI_2_DOMAIN = {
+    "CROSSREF": "api.crossref.org/v1/works/{}",  # /transform",
+    "DOI": "doi.org/{}",
+    # "SCIENCEDIRECT": "https://www.sciencedirect.com/science/article/abs/pii/{}"  # TODO This doesn't use DOI in its URL
+    "SPRINGER": "link.springer.com/article/{}",
+    "TANDF": "www.tandfonline.com/doi/abs/{}",
+    "WILEY": "onlinelibrary.wiley.com/doi/{}"
+}
 LOGGER_NAME = __name__
 
 
@@ -35,7 +43,10 @@ def as_HTTPS_URL(*parts: str, **url_params: Any) -> str:
     :return: String, full HTTPS URL path
     """
     str_params = [f"{k}={v}" for k, v in url_params.items()]
-    return f"https://{'/'.join(parts)}?{'&'.join(str_params)}"
+    url = f"https://{'/'.join(parts)}"
+    if str_params:
+        url += "?" + "&".join(str_params)
+    return url
 
 
 def debug(an_err: Exception, local_vars: Mapping[str, Any]) -> None:
@@ -84,6 +95,15 @@ def default_pop(poppable: Any, key: Any = None,
     return to_return
 
 
+def doi2url(doi: str, domain: str = "DOI", **kwargs: Any) -> str:
+    """
+    :param doi: str, valid DOI (Digital Object Identifier)
+    :param domain: str, key in the DOI_2_DOMAIN dict, defaults to "DOI"
+    :return: str, valid full URL of the specified Digital Object
+    """
+    return as_HTTPS_URL(DOI_2_DOMAIN[domain.upper()].format(doi), **kwargs)
+
+
 def download_GET(path_URL: str, headers: Mapping[str, Any]) -> Any:
     """
     :param path_URL: String, full URL path to a file/resource to download
@@ -98,7 +118,7 @@ def download_GET(path_URL: str, headers: Mapping[str, Any]) -> Any:
     try:
         assert response.status_code == 200
         return response
-    except (AssertionError, requests.JSONDecodeError) as e:
+    except (AssertionError, requests.JSONDecodeError) as err:
         # TODO replace print with log
         print(f"\nFailed to retrieve file(s) at {path_URL}\n"
               f"{response.status_code} Error: {response.reason}")
@@ -292,6 +312,7 @@ def utcnow() -> dt.datetime:
     return dt.datetime.now(tz=dt.timezone.utc)
 
 
+# TODO Maybe move into new "Loggable" class?
 def verbosity_to_log_level(verbosity: int) -> int:
     """
     :param verbosity: Int, the number of times that the user included the

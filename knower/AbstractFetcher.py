@@ -3,7 +3,7 @@
 """
 Greg Conan: gregmconan@gmail.com
 Created: 2024-08-19
-Updated: 2024-09-30
+Updated: 2024-10-21
 """
 # Import standard libraries
 import pdb
@@ -23,33 +23,17 @@ from knower.constants import (
     EMAIL, HDR_USR_AGENT
 )
 from knower.utilities import (
-    as_HTTPS_URL, Debuggable, extract_from_json, ShowTimeTaken
+    doi2url, Debuggable, extract_from_json, ShowTimeTaken
 )
 
 # Constants
 ABSTRACTS_FPATH = "example-publication-response.json"
-DOI_2_DOMAIN = {
-    "CROSSREF": "api.crossref.org/v1/works/{}",  # /transform",
-    "DOI": "doi.org/{}",
-    # "SCIENCEDIRECT": "https://www.sciencedirect.com/science/article/abs/pii/{}"  # TODO This doesn't use DOI in its URL
-    "SPRINGER": "link.springer.com/article/{}",
-    "TANDF": "www.tandfonline.com/doi/abs/{}",
-    "WILEY": "onlinelibrary.wiley.com/doi/{}"
-}
 XML_PREFIXED_TAG = r"(?:\s?\<{1}\/?.+?:{1}.+?\>\s?)+"
 # r"(?:\s?\<{1}.+?\>\s?)+" ?
 
 
-def doi2url(doi: str, domain: str = "DOI", **kwargs: Any) -> str:
-    """
-    :param doi: str, valid DOI (Digital Object Identifier)
-    :param domain: str, key in the DOI_2_DOMAIN dict, defaults to "DOI"
-    :return: str, valid full URL of the specified Digital Object
-    """
-    return as_HTTPS_URL(DOI_2_DOMAIN[domain.upper()].format(doi), **kwargs)
-
-
-def parse_abstract_from_incomplete_XML_str(abstract_txt: str) -> Dict[str, str]:
+def parse_abstract_from_incomplete_XML_str(abstract_txt: str
+                                           ) -> Dict[str, str]:
     abs_list = [x for x in filter(None, re.split(
         XML_PREFIXED_TAG, abstract_txt
     ))]  # re.split(XML_PREFIXED_TAG, abstract_txt)
@@ -60,17 +44,38 @@ def parse_abstract_from_incomplete_XML_str(abstract_txt: str) -> Dict[str, str]:
     return abs_dict
 
 
-class DOIDownloader(Debuggable):
-    HEADERS = {"accept": "application/xml,application/xhtml+xml,text/html,*/*",
-               "referer": "api.crossref.org",
-               "accept-encoding": "gzip, deflate, br, zstd",
-               "user-agent": HDR_USR_AGENT}
-
+class Downloader(Debuggable):
     def __init__(self, debugging: bool = False) -> None:
         self.debugging = debugging
-        self.doi2resp = self.read_abstracts()  # TODO Move elsewhere?
         self.responses = list()
         self.ses = requests.Session()
+
+    def get(self, url: str | bytes,
+            # allow_redirects: bool = True, timeout: int = 10,
+            # headers: Mapping[str, str] = {...},
+            url_params: Mapping[str, str],
+            **kwargs: Any) -> requests.Response:
+        try:
+            self.responses.append(self.ses.get(url, params=url_params,
+                                               **kwargs))
+            # allow_redirects=allow_redirects, timeout=timeout,
+            return self.responses[-1]
+        except requests.RequestException as err:
+            self.debug_or_raise(err, locals())
+
+
+class AbstractFetcher(Downloader):
+    HEADERS: Dict[str, str] = {
+        "accept": "application/xml,application/xhtml+xml,text/html,*/*",
+        "referer": "api.crossref.org",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "user-agent": HDR_USR_AGENT
+    }
+
+    def __init__(self, fpath: Optional[str] = ABSTRACTS_FPATH,
+                 debugging: bool = False) -> None:
+        super().__init__(debugging=debugging)
+        self.doi2resp = self.read_from_file(fpath)  # TODO Move elsewhere?
 
     def download(self, url: str | bytes,
                  # allow_redirects: bool = True, timeout: int = 10,
@@ -84,19 +89,12 @@ class DOIDownloader(Debuggable):
 
         # Default headers for REST request; overwrite with any new ones
         kwargs["headers"] = {**self.HEADERS, **kwargs.get("headers", dict())}
+        return self.get(url, url_params, **kwargs)
 
-        try:
-            self.responses.append(self.ses.get(url, params=url_params,
-                                               **kwargs))
-            # allow_redirects=allow_redirects, timeout=timeout,
-            return self.responses[-1]
-        except requests.RequestException as e:
-            self.debug_or_raise(e, locals())
-
-    def download_abstract_of(self, doi: str):
+    def download_crossref(self, doi: str) -> dict | None:  # TODO ?
         return self.download(doi2url(doi, "crossref")).json()
 
-    def download_citation_of(self, doi: str) -> BibDatabase:
+    def download_bibtex(self, doi: str) -> BibDatabase:
         """
         Get citation
         :param doi: str, _description_
@@ -106,32 +104,32 @@ class DOIDownloader(Debuggable):
                              headers={"accept": "application/x-bibtex"})
         return bibtexparser.loads(resp.text.strip())
 
-    def get_abstract_of(self, doi: str):
+    def fetch(self, doi: str) -> Dict[str, str]:
         """
         _summary_ 
         :param doi: str, _description_
         """
         resp_json = self.doi2resp.get(doi)
         if not resp_json:
-            resp_json = self.download_abstract_of(doi)
+            resp_json = self.download_crossref(doi)
         try:
             abstract_txt = resp_json["message"]["abstract"].strip()
-        except (KeyError, TypeError) as e:
-            self.debug_or_raise(e, locals())
+        except (KeyError, TypeError) as err:
+            self.debug_or_raise(err, locals())
         try:
             # TODO add functionality to add newly downloaded abstracts to .JSON file
             abstract = parse_abstract_from_incomplete_XML_str(abstract_txt)
             assert abstract
             return abstract
-        except AssertionError as e:
-            self.debug_or_raise(e, locals())
+        except AssertionError as err:
+            self.debug_or_raise(err, locals())
 
-    def read_abstracts(self, fpath: str = ABSTRACTS_FPATH) -> Dict[str, Any]:
+    def read_from_file(self, fpath: str) -> Dict[str, Any]:
         try:  # TODO Move this method to a different class?
             return extract_from_json(fpath)
-        except (OSError, requests.JSONDecodeError) as e:
+        except (OSError, requests.JSONDecodeError) as err:
             print(f"Failed to read {fpath}")
-            self.debug_or_raise(e, locals())
-        except (AttributeError, KeyError, ValueError) as e:
+            self.debug_or_raise(err, locals())
+        except (AttributeError, KeyError, ValueError) as err:
             print("Unexpected err")
-            self.debug_or_raise(e, locals())
+            self.debug_or_raise(err, locals())

@@ -7,12 +7,14 @@ Created: 2024-07-26
 Updated: 2024-09-30
 """
 # Import standard libraries
+import argparse
+import os
 import pdb
 from typing import Dict
 
 # Local custom imports
 from knower.constants import DOI_EXAMPLES, EMAIL
-from knower.DOIDownloader import DOIDownloader
+from knower.AbstractFetcher import AbstractFetcher
 from knower.elsa import run_elsapy_test
 from knower.utilities import (
     SplitLogger, ShowTimeTaken
@@ -26,15 +28,15 @@ def main():
     SplitLogger.from_cli_args(_args)  # logger =
 
     abstracts = dict()
-    downloader = DOIDownloader(_args["debugging"])
+    fetcher = AbstractFetcher(debugging=_args["debugging"])
     for each_DOI in _args["doi"]:
-        abstracts[each_DOI] = downloader.get_abstract_of(each_DOI)
+        abstracts[each_DOI] = fetcher.fetch(each_DOI)
     pdb.set_trace()
     print("Done")
 
 
 def get_cli_args() -> Dict[str, str]:
-    parser = ArgParser()  # TODO No need for a custom parser
+    parser = ArgParser()
     parser.add_argument(
         "-d", "-debug", "--debug", "--debugging",
         action="store_true",
@@ -48,12 +50,14 @@ def get_cli_args() -> Dict[str, str]:
         nargs="+",
         help=("The DOI (Digital Object Identifier) of every document to get.")
     )
-    parser.add_arg_with_names(
+    parser.add_argument(
         "-e", "-email", "--email", "--email-address",
         default=EMAIL,
         dest="email",
         help=("Valid email address to include in Crossref API REST requests.")
     )
+    parser.add_new_out_dir_arg("log")
+    parser.add_new_out_dir_arg("out")
     parser.add_argument(
         "-v", "--verbose",
         action="count",
@@ -62,8 +66,6 @@ def get_cli_args() -> Dict[str, str]:
         help=("Include this flag to print more info to stdout while running. "
               "Including the flag more times will print more information.")
     )
-    parser.add_arg_out_dir("log", "to")
-    parser.add_arg_out_dir("out")
     return vars(parser.parse_args())
 
 
