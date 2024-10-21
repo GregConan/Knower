@@ -50,9 +50,10 @@ class ArgParser(argparse.ArgumentParser):
 
 
 class Valid:
-    dir_made = wrap_with_params(os.makedirs, exist_ok=True)
-    readable = wrap_with_params(os.access, mode=os.R_OK)
-    writable = wrap_with_params(os.access, mode=os.W_OK)
+    # TODO Do this in a more standard way
+    dir_made: Callable = wrap_with_params(os.makedirs, exist_ok=True)
+    readable: Callable = wrap_with_params(os.access, mode=os.R_OK)
+    writable: Callable = wrap_with_params(os.access, mode=os.W_OK)
 
     @staticmethod
     def _validate(to_validate: Any, *conditions: Callable,
