@@ -22,8 +22,22 @@ python-docx = "^1.1.2"
 nltk = "^3.9.1"
 pympler = "^1.1"
 django = "^5.1.2"
+psycopg2-binary = {version = "^2.9.10", allow-prereleases = true}
+tldextract = "^5.1.2"
+pybliometrics = "^4.1"
+pytest = "^8.3.3"
+commonmark = "^0.9.1"
+python-frontmatter = "^1.1.0"
+astdump = "^4.3"
+python-box = {version = ">=7.0,<8.0", extras = ["all"]}
+markdown-to-json = "^2.1.2"
+cryptography = "^44.0.0"
+pymupdf = "^1.25.3"
+pathvalidate = "^3.2.3"
+regex = "^2024.11.6"
+gconanpy = {git = "https://github.com/GregConan/gconanpy.git", rev = "v0.1.1"}
 
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core", "setuptools"]
 build-backend = "poetry.core.masonry.api"

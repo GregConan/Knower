@@ -4,7 +4,7 @@
 Knower
 Greg Conan: gregmconan@gmail.com
 Created: 2024-07-26
-Updated: 2024-09-30
+Updated: 2025-03-13
 """
 # Import standard libraries
 import argparse
@@ -12,14 +12,14 @@ import os
 import pdb
 from typing import Dict
 
-# Local custom imports
-from knower.constants import DOI_EXAMPLES, EMAIL
+# Import remote custom libraries
+from gconanpy.cli import ArgParser
+from gconanpy.debug import ShowTimeTaken, SplitLogger
+
+# Import local custom libraries
 from knower.AbstractFetcher import AbstractFetcher
+from knower.constants import DOI_EXAMPLES, EMAIL
 from knower.elsa import run_elsapy_test
-from knower.utilities import (
-    SplitLogger, ShowTimeTaken
-)
-from knower.Validators import ArgParser
 
 
 def main():
@@ -28,7 +28,8 @@ def main():
     SplitLogger.from_cli_args(_args)  # logger =
 
     abstracts = dict()
-    fetcher = AbstractFetcher(debugging=_args["debugging"])
+    fetcher = AbstractFetcher(debugging=_args["debugging"],
+                              verbosity=_args["verbosity"])
     for each_DOI in _args["doi"]:
         abstracts[each_DOI] = fetcher.fetch(each_DOI)
     pdb.set_trace()
